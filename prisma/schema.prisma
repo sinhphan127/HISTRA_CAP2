@@ -1,0 +1,26 @@
+generator client {
+    provider ="prisma-client-js"
+}
+
+datasource db {
+    provider = "mysql"
+    url      = env("DATABASE_URL")
+}
+model User {
+  id                  String   @id @default(uuid()) @db.VarChar(36)
+  username            String   @unique @db.VarChar(50)
+  email               String   @unique @db.VarChar(150)
+  password            String   @db.VarChar(255)
+  fullName            String?  @map("full_name") @db.VarChar(100)
+  age                 Int?     @db.TinyInt
+  avatarUrl           String?  @map("avatar_url") @db.VarChar(255)
+  roles               String   @default("user") @db.VarChar(50)
+  bio                 String?  @db.Text
+  location            String?  @db.VarChar(100)
+  locationInformation Json?    @map("location_information")
+  softDelete          Boolean  @default(false) @map("soft_delete")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+  status              String   @default("active") @db.VarChar(20)
+  @@map("users") 
+}
