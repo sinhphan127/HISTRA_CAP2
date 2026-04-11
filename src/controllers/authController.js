@@ -17,8 +17,14 @@ const authController = {
 
   login: async (req, res, next) => {
     try {
-      const { email, password } = req.body;
-      const result = await authService.login({ email, password });
+      const { email, loginIdentifier, password } = req.body;
+      const userEmail = email || loginIdentifier;
+      
+      if (!userEmail) {
+        return res.status(400).json({ success: false, message: "Email hoặc mã đăng nhập là bắt buộc" });
+      }
+
+      const result = await authService.login({ email: userEmail, password });
       res.status(200).json({ success: true, ...result });
     } catch (err) {
       next(err);
