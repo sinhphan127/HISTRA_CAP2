@@ -20,23 +20,30 @@ export const authMiddleware = async (req, res, next) => {
     }
     const decoded = jwt.verify(token, JWT_SECRET);
     const user = await prisma.user.findUnique({
-      where: { id: decoded.id },
+      where: { id: parseInt(decoded.id, 10) },
       select: { 
         id: true, 
         email: true,  
-        full_name: true,    
-        phone_number: true, 
-        role: true,
+        fullName: true,
+        bio: true,
+        avatarUrl: true,    
+        userRoles: { include: { role: true } },
         createdAt: true,
       },
     });
     if (!user) {
       return res.status(401).json({ success: false, message: "Người dùng không tồn tại trong hệ thống" });
     }
-    req.user = user;
+    const mappedRole = user.userRoles?.[0]?.role?.roleName || "user";
+    req.user = {
+      ...user,
+      role: mappedRole
+    };
     next();
   } catch (error) {
-    return res.status(401).json({ success: false, message: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn" });
+    console.log("=== LỖI GIẢI MÃ TOKEN ===");
+    console.log(error);
+    return res.status(401).json({ success: false, message: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn", error_detail: error.message });
   }
 }; 
 export const restrictToAdmin = (req, res, next) => {

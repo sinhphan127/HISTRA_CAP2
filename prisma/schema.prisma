@@ -1,31 +1,422 @@
 generator client {
-    provider ="prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-    provider = "mysql"
-    url      = env("DATABASE_URL")
+  provider = "mysql"
+  url      = env("DATABASE_URL")
 }
+
+model Role {
+  id        Int        @id @default(autoincrement()) @map("role_id")
+  roleName  String?    @unique @map("role_name") @db.VarChar(50)
+  userRoles UserRole[]
+
+  @@map("roles")
+}
+
 model User {
-  id                  String   @id @default(uuid()) @db.VarChar(36)
-  username            String?   @unique @db.VarChar(50)
-  email               String   @unique @db.VarChar(150)
-  password            String   @db.VarChar(255)
-  fullName            String?  @map("full_name") @db.VarChar(100)
-  phoneNumber         String?  @map("phone_number") @db.VarChar(20)
-  age                 Int?     @db.TinyInt
-  avatarUrl           String?  @map("avatar_url") @db.VarChar(255)
-  roles               String   @default("user") @db.VarChar(50)
-  bio                 String?  @db.Text
-  location            String?  @db.VarChar(100)
-  locationInformation Json?    @map("location_information")
-  otp                 String?   @db.VarChar(10)
-  otpExpiry           DateTime?
-  resetToken          String?   @db.VarChar(255)
-  resetTokenExpiry    DateTime?
-  softDelete          Boolean  @default(false) @map("soft_delete")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
-  status              String   @default("active") @db.VarChar(20)
-  @@map("users") 
+  id                   Int                @id @default(autoincrement()) @map("user_id")
+  username             String?            @unique @db.VarChar(50)
+  email                String?            @unique @db.VarChar(100)
+  password             String             @map("password_hash") @db.Text
+  fullName             String?            @map("full_name") @db.VarChar(100)
+  age                  Int?
+  avatarUrl            String?            @map("avatar_url") @db.Text
+  bio                  String?            @db.Text
+  location             String?            @db.VarChar(100)
+  phoneNumber          String?            @db.VarChar(20) @map("phone_number")
+  status               String?            @default("active") @db.VarChar(20)
+  isDeleted            Boolean?           @default(false) @map("is_deleted")
+  createdAt            DateTime?          @default(now()) @map("created_at")
+  updatedAt            DateTime?          @updatedAt @map("updated_at")
+  resetToken           String?            @map("reset_token") @db.VarChar(255)
+  resetTokenExpiry     DateTime?          @map("reset_token_expiry")
+  failedLoginAttempts  Int?               @default(0) @map("failed_login_attempts")
+  lockUntil            DateTime?          @map("lock_until")
+  aiConversations      AiConversation[]
+  comments             Comment[]
+  conversationUsers    ConversationUser[]
+  friendshipsAddressee Friendship[]       @relation("FriendshipAddressee")
+  friendshipsRequester Friendship[]       @relation("FriendshipRequester")
+  messages             Message[]
+  notifications        Notification[]     @relation("NotificationRecipient")
+  triggeredNotifications Notification[]   @relation("NotificationActor")
+  otpCodes             OtpCode[]
+  postLikes            PostLike[]
+  posts                Post[]
+  reports              Report[]
+  savedPosts           SavedPost[]
+  trips                Trip[]
+  userRoles            UserRole[]
+
+  @@map("users")
+}
+
+model UserRole {
+  id     Int  @id @default(autoincrement())
+  userId Int  @map("user_id")
+  roleId Int  @map("role_id")
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([roleId], map: "user_roles_role_id_fkey")
+  @@index([userId], map: "user_roles_user_id_fkey")
+  @@map("user_roles")
+}
+
+model OtpCode {
+  id        Int       @id @default(autoincrement()) @map("otp_id")
+  userId    Int?      @map("user_id")
+  code      String?   @db.VarChar(10)
+  expiredAt DateTime? @map("expired_at")
+  isUsed    Boolean?  @default(false) @map("is_used")
+  createdAt DateTime? @default(now()) @map("created_at")
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "otp_codes_user_id_fkey")
+  @@map("otp_codes")
+}
+
+model Friendship {
+  id          Int       @id @default(autoincrement()) @map("friendship_id")
+  requesterId Int       @map("requester_id")
+  addresseeId Int       @map("addressee_id")
+  status      String?   @default("pending") @db.VarChar(20)
+  createdAt   DateTime? @default(now()) @map("created_at")
+  updatedAt   DateTime? @updatedAt @map("updated_at")
+  addressee   User      @relation("FriendshipAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+  requester   User      @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId], name: "uq_friend")
+  @@index([addresseeId], map: "friendships_addressee_id_fkey")
+  @@map("friendships")
+}
+
+model Post {
+  id            Int            @id @default(autoincrement()) @map("post_id")
+  userId        Int?           @map("user_id")
+  title         String?        @db.VarChar(255)
+  content       String?        @db.Text
+  thumbnailUrl  String?        @map("thumbnail_url") @db.Text
+  isDeleted     Boolean?       @default(false) @map("is_deleted")
+  createdAt     DateTime?      @default(now()) @map("created_at")
+  updatedAt     DateTime?      @updatedAt @map("updated_at")
+  comments      Comment[]
+  mediaFiles    MediaFile[]
+  postLikes     PostLike[]
+  postLocations PostLocation[]
+  user          User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savedPosts    SavedPost[]
+  notifications Notification[]
+
+  @@index([userId], map: "posts_user_id_fkey")
+  @@map("posts")
+}
+
+model Destination {
+  id            Int            @id @default(autoincrement()) @map("destination_id")
+  name          String?        @db.VarChar(255)
+  province      String?        @db.VarChar(100)
+  city          String?        @db.VarChar(100)
+  country       String?        @db.VarChar(100)
+  description   String?        @db.Text
+  ticketPrice   Decimal?       @map("ticket_price") @db.Decimal(10, 2)
+  openingHours  String?        @map("opening_hours") @db.VarChar(100)
+  rating        Decimal?       @db.Decimal(3, 2)
+  reviewsCount  Int?           @default(0) @map("reviews_count")
+  duration      String?        @db.VarChar(50)
+  latitude      Decimal?       @db.Decimal(10, 6)
+  longitude     Decimal?       @db.Decimal(10, 6)
+  imageUrl      String?        @map("image_url") @db.Text
+  category      String?        @db.VarChar(50)
+  isDeleted     Boolean?       @default(false) @map("is_deleted")
+  createdAt     DateTime?      @default(now()) @map("created_at")
+  articles      Article[]
+  deals         Deal[]
+  postLocations PostLocation[]
+  tripLocations TripLocation[]
+
+  @@map("destinations")
+}
+
+model PostLocation {
+  id            Int          @id @default(autoincrement())
+  postId        Int?         @map("post_id")
+  destinationId Int?         @map("destination_id")
+  destination   Destination? @relation(fields: [destinationId], references: [id])
+  post          Post?        @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([destinationId], map: "post_locations_destination_id_fkey")
+  @@index([postId], map: "post_locations_post_id_fkey")
+  @@map("post_locations")
+}
+
+model Comment {
+  id        Int       @id @default(autoincrement()) @map("comment_id")
+  postId    Int?      @map("post_id")
+  userId    Int?      @map("user_id")
+  content   String?   @db.Text
+  isDeleted Boolean?  @default(false) @map("is_deleted")
+  createdAt DateTime? @default(now()) @map("created_at")
+  post      Post?     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id])
+
+  @@index([postId], map: "comments_post_id_fkey")
+  @@index([userId], map: "comments_user_id_fkey")
+  @@map("comments")
+}
+
+model PostLike {
+  id        Int       @id @default(autoincrement())
+  postId    Int?      @map("post_id")
+  userId    Int?      @map("user_id")
+  createdAt DateTime? @default(now()) @map("created_at")
+  post      Post?     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id])
+
+  @@unique([postId, userId], name: "uq_post_like")
+  @@index([userId], map: "post_likes_user_id_fkey")
+  @@map("post_likes")
+}
+
+model MediaFile {
+  id        Int       @id @default(autoincrement()) @map("media_id")
+  postId    Int?      @map("post_id")
+  fileUrl   String?   @map("file_url") @db.Text
+  fileType  String?   @map("file_type") @db.VarChar(20)
+  createdAt DateTime? @default(now()) @map("created_at")
+  post      Post?     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId], map: "media_files_post_id_fkey")
+  @@map("media_files")
+}
+
+model SavedPost {
+  id        Int       @id @default(autoincrement())
+  userId    Int?      @map("user_id")
+  postId    Int?      @map("post_id")
+  createdAt DateTime? @default(now()) @map("created_at")
+  post      Post?     @relation(fields: [postId], references: [id])
+  user      User?     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, postId], name: "uq_saved_post")
+  @@index([postId], map: "saved_posts_post_id_fkey")
+  @@map("saved_posts")
+}
+
+model Article {
+  id            Int          @id @default(autoincrement()) @map("article_id")
+  destinationId Int?         @map("destination_id")
+  title         String?      @db.VarChar(255)
+  content       String?      @db.Text
+  articleType   String?      @map("article_type") @db.VarChar(50)
+  createdAt     DateTime?    @default(now()) @map("created_at")
+  destination   Destination? @relation(fields: [destinationId], references: [id])
+
+  @@index([destinationId], map: "articles_destination_id_fkey")
+  @@map("articles")
+}
+
+model DestinationNearby {
+  id                  Int      @id @default(autoincrement())
+  destinationId       Int?     @map("destination_id")
+  nearbyDestinationId Int?     @map("nearby_destination_id")
+  distanceKm          Decimal? @map("distance_km") @db.Decimal(5, 2)
+
+  @@map("destination_nearby")
+}
+
+model Conversation {
+  id              Int                @id @default(autoincrement()) @map("conversation_id")
+  type            String?            @db.VarChar(20)
+  groupName       String?            @map("group_name") @db.VarChar(255)
+  creatorId       Int?               @map("creator_id")
+  lastMessage     String?            @map("last_message") @db.Text
+  lastMessageTime DateTime?          @map("last_message_time")
+  createdAt       DateTime?          @default(now()) @map("created_at")
+  users           ConversationUser[]
+  messages        Message[]
+
+  @@map("conversations")
+}
+
+model ConversationUser {
+  id             Int           @id @default(autoincrement())
+  conversationId Int?          @map("conversation_id")
+  userId         Int?          @map("user_id")
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User?         @relation(fields: [userId], references: [id])
+
+  @@index([conversationId], map: "conversation_users_conversation_id_fkey")
+  @@index([userId], map: "conversation_users_user_id_fkey")
+  @@map("conversation_users")
+}
+
+model Message {
+  id             Int           @id @default(autoincrement()) @map("message_id")
+  conversationId Int?          @map("conversation_id")
+  userId         Int?          @map("user_id")
+  content        String?       @db.Text
+  messageType    String?       @map("message_type") @db.VarChar(20)
+  createdAt      DateTime?     @default(now()) @map("created_at")
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User?         @relation(fields: [userId], references: [id])
+
+  @@index([conversationId], map: "messages_conversation_id_fkey")
+  @@index([userId], map: "messages_user_id_fkey")
+  @@map("messages")
+}
+
+model AiConversation {
+  id         Int         @id @default(autoincrement())
+  userId     Int?        @map("user_id")
+  tripId     Int?        @map("trip_id")
+  title      String?     @db.VarChar(255)
+  createdAt  DateTime?   @default(now()) @map("created_at")
+  user       User?       @relation(fields: [userId], references: [id])
+  aiMessages AiMessage[]
+
+  @@index([userId], map: "ai_conversations_user_id_fkey")
+  @@map("ai_conversations")
+}
+
+model AiMessage {
+  id               Int             @id @default(autoincrement())
+  aiConversationId Int?            @map("ai_conversation_id")
+  role             String?         @db.VarChar(20)
+  content          String?         @db.Text
+  createdAt        DateTime?       @default(now()) @map("created_at")
+  aiConversation   AiConversation? @relation(fields: [aiConversationId], references: [id], onDelete: Cascade)
+
+  @@index([aiConversationId], map: "ai_messages_ai_conversation_id_fkey")
+  @@map("ai_messages")
+}
+
+model Trip {
+  id              Int              @id @default(autoincrement()) @map("trip_id")
+  userId          Int?             @map("user_id")
+  title           String?          @db.VarChar(255)
+  city            String?          @db.VarChar(100)
+  description     String?          @db.Text
+  budget          Decimal?         @db.Decimal(10, 2)
+  startDate       DateTime?        @map("start_date") @db.Date
+  endDate         DateTime?        @map("end_date") @db.Date
+  status          String?          @db.VarChar(20)
+  createdAt       DateTime?        @default(now()) @map("created_at")
+  costEstimations CostEstimation[]
+  tripCostDetails TripCostDetail[]
+  tripLocations   TripLocation[]
+  user            User?            @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "trips_user_id_fkey")
+  @@map("trips")
+}
+
+model TripLocation {
+  id               Int               @id @default(autoincrement())
+  tripId           Int?              @map("trip_id")
+  destinationId    Int?              @map("destination_id")
+  dayNumber        Int?              @map("day_number")
+  visitOrder       Int?              @map("visit_order")
+  arrivalTime      DateTime?         @map("arrival_time") @db.Time(0)
+  departureTime    DateTime?         @map("departure_time") @db.Time(0)
+  estimatedCost    Decimal?          @map("estimated_cost") @db.Decimal(10, 2)
+  tripActivityTags TripActivityTag[]
+  destination      Destination?      @relation(fields: [destinationId], references: [id])
+  trip             Trip?             @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([destinationId], map: "trip_locations_destination_id_fkey")
+  @@index([tripId], map: "trip_locations_trip_id_fkey")
+  @@map("trip_locations")
+}
+
+model TripCostDetail {
+  id       Int      @id @default(autoincrement())
+  tripId   Int?     @map("trip_id")
+  costType String?  @map("cost_type") @db.VarChar(50)
+  amount   Decimal? @db.Decimal(10, 2)
+  trip     Trip?    @relation(fields: [tripId], references: [id])
+
+  @@index([tripId], map: "trip_cost_details_trip_id_fkey")
+  @@map("trip_cost_details")
+}
+
+model CostEstimation {
+  id         Int      @id @default(autoincrement())
+  tripId     Int?     @map("trip_id")
+  foodCost   Decimal? @map("food_cost") @db.Decimal(10, 2)
+  ticketCost Decimal? @map("ticket_cost") @db.Decimal(10, 2)
+  hotelCost  Decimal? @map("hotel_cost") @db.Decimal(10, 2)
+  totalCost  Decimal? @map("total_cost") @db.Decimal(10, 2)
+  trip       Trip?    @relation(fields: [tripId], references: [id])
+
+  @@index([tripId], map: "cost_estimations_trip_id_fkey")
+  @@map("cost_estimations")
+}
+
+model ActivityTag {
+  id               Int               @id @default(autoincrement()) @map("tag_id")
+  name             String?           @db.VarChar(50)
+  tripActivityTags TripActivityTag[]
+
+  @@map("activity_tags")
+}
+
+model TripActivityTag {
+  id             Int           @id @default(autoincrement())
+  tripLocationId Int?          @map("trip_location_id")
+  tagId          Int?          @map("tag_id")
+  tag            ActivityTag?  @relation(fields: [tagId], references: [id])
+  tripLocation   TripLocation? @relation(fields: [tripLocationId], references: [id])
+
+  @@index([tagId], map: "trip_activity_tags_tag_id_fkey")
+  @@index([tripLocationId], map: "trip_activity_tags_trip_location_id_fkey")
+  @@map("trip_activity_tags")
+}
+
+model Deal {
+  id                 Int          @id @default(autoincrement()) @map("deal_id")
+  title              String?      @db.VarChar(255)
+  description        String?      @db.Text
+  discountPercentage Int?         @map("discount_percentage")
+  imageUrl           String?      @map("image_url") @db.Text
+  destinationId      Int?         @map("destination_id")
+  expiredAt          DateTime?    @map("expired_at")
+  destination        Destination? @relation(fields: [destinationId], references: [id])
+
+  @@index([destinationId], map: "deals_destination_id_fkey")
+  @@map("deals")
+}
+
+model Notification {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id") // Người nhận
+  actorId   Int?      @map("actor_id") // Người thực hiện hành động
+  postId    Int?      @map("post_id") // Bài viết liên quan
+  type      String    @db.VarChar(50) // 'LIKE', 'COMMENT', 'SAVE', 'FOLLOW'
+  content   String?   @db.Text
+  isRead    Boolean   @default(false) @map("is_read")
+  createdAt DateTime? @default(now()) @map("created_at")
+  
+  user      User      @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor     User?     @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  post      Post?     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("notifications")
+}
+
+model Report {
+  id         Int       @id @default(autoincrement())
+  userId     Int?      @map("user_id")
+  targetType String?   @map("target_type") @db.VarChar(50)
+  targetId   Int?      @map("target_id")
+  reason     String?   @db.Text
+  status     String?   @db.VarChar(50)
+  createdAt  DateTime? @default(now()) @map("created_at")
+  user       User?     @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "reports_user_id_fkey")
+  @@map("reports")
 }
