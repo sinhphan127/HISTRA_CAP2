@@ -12,6 +12,8 @@ import messengerRoutes from "./routes/messengerRoutes.js";
 import postRoutes from "./routes/postRoutes.js";
 import discoveryRoutes from "./routes/discoveryRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import friendRoutes from "./routes/friendRoutes.js";
+import tripRoutes from "./routes/tripRoutes.js";
 
 dotenv.config();
 const app = express();
@@ -57,6 +59,8 @@ app.use("/api/messenger", messengerRoutes);
 app.use("/api/posts", postRoutes);
 app.use("/api/discovery", discoveryRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/friends", friendRoutes);
+app.use("/api/trips", tripRoutes);
 
 
 // Global Error Handler

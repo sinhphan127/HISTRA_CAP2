@@ -1,4 +1,5 @@
 import prisma from "../config/prismaClient.js";
+import { getPostMemories } from "../services/postService.js";
 
 /**
  * Lấy dữ liệu tổng hợp cho trang chủ
@@ -73,7 +74,8 @@ export const getHomeData = async (req, res, next) => {
  */
 export const getDestinations = async (req, res, next) => {
   try {
-    const { keyword, category, province } = req.query;
+    const { keyword, category, province, minRating } = req.query;
+    console.log(`[Discovery] Search with: keyword=${keyword}, category=${category}, province=${province}, minRating=${minRating}`);
 
     const where = {
       isDeleted: false,
@@ -81,28 +83,49 @@ export const getDestinations = async (req, res, next) => {
 
     if (keyword) {
       where.OR = [
-        { name: { contains: keyword } },
-        { description: { contains: keyword } }
+        { name: { contains: keyword, mode: 'insensitive' } },
+        { description: { contains: keyword, mode: 'insensitive' } }
       ];
     }
 
-    if (category) {
-      where.category = category;
+    if (category && category !== 'All') {
+      where.category = { contains: category, mode: 'insensitive' };
     }
 
-    if (province) {
-      where.province = province;
+    if (province && province !== 'All') {
+      where.province = { contains: province, mode: 'insensitive' };
+    }
+
+    if (minRating && !isNaN(parseFloat(minRating))) {
+      where.rating = { gte: parseFloat(minRating) };
     }
 
     const destinations = await prisma.destination.findMany({
       where,
-      orderBy: { rating: 'desc' },
-      take: 20
+      orderBy: [
+        { rating: 'desc' },
+        { reviewsCount: 'desc' }
+      ],
+      take: 50
     });
 
     res.status(200).json({
       success: true,
       data: destinations
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getMemories = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const memories = await getPostMemories(userId);
+
+    res.status(200).json({
+      success: true,
+      data: memories
     });
   } catch (err) {
     next(err);

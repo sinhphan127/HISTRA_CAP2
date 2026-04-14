@@ -256,4 +256,40 @@ export async function toggleSavePost(userId, postId) {
     return { saved: true };
   }
 }
+/**
+ * Lấy danh sách bài viết có gắn địa điểm để hiển thị trên bản đồ ký ức
+ */
+export async function getPostMemories(userId) {
+  const posts = await prisma.post.findMany({
+    where: {
+      userId: parseInt(userId, 10),
+      isDeleted: false,
+      postLocations: {
+        some: {} // Chỉ lấy những bài có gắn địa điểm
+      }
+    },
+    include: {
+      postLocations: {
+        include: {
+          destination: true
+        }
+      }
+    },
+    orderBy: { createdAt: 'desc' }
+  });
 
+  return posts.map(post => {
+    // Lấy tọa độ từ địa điểm đầu tiên gắn với bài viết
+    const firstLoc = post.postLocations[0]?.destination;
+    return {
+      id: post.id,
+      title: post.title,
+      content: post.content,
+      thumbnailUrl: post.thumbnailUrl,
+      createdAt: post.createdAt,
+      latitude: firstLoc?.latitude ? parseFloat(firstLoc.latitude) : null,
+      longitude: firstLoc?.longitude ? parseFloat(firstLoc.longitude) : null,
+      locationName: firstLoc?.name
+    };
+  }).filter(p => p.latitude && p.longitude); // Lọc bỏ nếu ko có tọa độ
+}
