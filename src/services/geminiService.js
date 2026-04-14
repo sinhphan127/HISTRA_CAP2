@@ -22,8 +22,8 @@ const geminiService = {
       console.log(`[GeminiService] Generating itinerary for: ${city}, ${days} days, ${travelers} travelers`);
       console.log(`[GeminiService] Using API key: ${process.env.GEMINI_API_KEY?.substring(0, 10)}...`);
 
-      // Use gemini-2.0-flash as it is the current stable recommended model
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+      // Use gemini-flash-latest as it is currently supported and works with the provided API key
+      const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
       const prompt = `
         You are a professional Vietnamese travel assistant. 

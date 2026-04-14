@@ -13,8 +13,8 @@ const tripService = {
     const destinations = await prisma.destination.findMany({
       where: {
         OR: [
-          { city: { contains: city, mode: 'insensitive' } },
-          { province: { contains: city, mode: 'insensitive' } }
+          { city: { contains: city } },
+          { province: { contains: city } }
         ],
         isDeleted: false
       },
@@ -65,7 +65,7 @@ const tripService = {
         
         // Tìm destinationId nếu có trong DB
         const destination = await prisma.destination.findFirst({
-          where: { name: { contains: slot.locationName, mode: 'insensitive' } }
+          where: { name: { contains: slot.locationName } }
         });
 
         await prisma.tripLocation.create({

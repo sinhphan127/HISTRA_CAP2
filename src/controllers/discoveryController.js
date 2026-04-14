@@ -83,17 +83,17 @@ export const getDestinations = async (req, res, next) => {
 
     if (keyword) {
       where.OR = [
-        { name: { contains: keyword, mode: 'insensitive' } },
-        { description: { contains: keyword, mode: 'insensitive' } }
+        { name: { contains: keyword } },
+        { description: { contains: keyword } }
       ];
     }
 
     if (category && category !== 'All') {
-      where.category = { contains: category, mode: 'insensitive' };
+      where.category = { contains: category };
     }
 
     if (province && province !== 'All') {
-      where.province = { contains: province, mode: 'insensitive' };
+      where.province = { contains: province };
     }
 
     if (minRating && !isNaN(parseFloat(minRating))) {
