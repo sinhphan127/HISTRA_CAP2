@@ -1,5 +1,5 @@
 import prisma from "../config/prismaClient.js";
-import geminiService from "./geminiService.js";
+import ollamaService from "./ollamaService.js";
 
 /**
  * Service to handle Trip (Itinerary) business logic
@@ -8,30 +8,72 @@ const tripService = {
   /**
    * Generates an itinerary using AI and returns it for user review
    */
-  async generateItinerary({ city, days, travelers, interests = [] }) {
-    // 1. Lấy dữ liệu điểm đến tại thành phố đó để làm ngữ cảnh cho AI
+  async generateItinerary({ city, days, travelers, interests = [], budget = null }) {
+    console.log(`[TripService] RAG Step 1 — Filter DB: city="${city}", interests=[${interests}]`);
+
+    // ── RAG Step 1: Search DB — KHÔNG gửi toàn bộ DB vào Qwen ─────────────
+    // Chỉ lấy địa điểm liên quan đến city + interests → Top 20
     const destinations = await prisma.destination.findMany({
       where: {
-        OR: [
-          { city: { contains: city } },
-          { province: { contains: city } }
-        ],
-        isDeleted: false
+        AND: [
+          {
+            OR: [
+              { city:     { contains: city } },
+              { province: { contains: city } }
+            ]
+          },
+          { isDeleted: false },
+          // Filter theo interests nếu user cung cấp
+          ...(interests?.length > 0
+            ? [{ category: { in: interests } }]
+            : []
+          )
+        ]
       },
-      take: 15
+      orderBy: { rating: 'desc' },
+      take: 20
     });
 
-    // 2. Gọi Gemini để tạo lịch trình
-    const itinerary = await geminiService.generateItinerary({
+    console.log(`[TripService] RAG Step 1 — Found ${destinations.length} places from DB`);
+
+    // Nếu filter interests quá chặt → fallback không filter category
+    const rawDestinations = destinations.length >= 3
+      ? destinations
+      : await prisma.destination.findMany({
+          where: {
+            OR: [
+              { city:     { contains: city } },
+              { province: { contains: city } }
+            ],
+            isDeleted: false
+          },
+          orderBy: { rating: 'desc' },
+          take: 20
+        });
+
+    // Loại bỏ địa điểm trùng tên (seed data bị duplicate)
+    const seen = new Set();
+    const finalDestinations = rawDestinations.filter(d => {
+      if (seen.has(d.name)) return false;
+      seen.add(d.name);
+      return true;
+    });
+
+    console.log(`[TripService] RAG Step 2 — Sending ${finalDestinations.length} unique places to Qwen`);
+
+    // ── RAG Step 2: Gửi Top Places vào Qwen để reasoning ──────────────────
+    const itinerary = await ollamaService.generateItinerary({
       city,
       days,
       travelers,
-      destinations,
-      interests
+      destinations: finalDestinations,
+      interests,
+      budget
     });
 
     return itinerary;
   },
+
 
   /**
    * Saves a generated trip to the database
@@ -50,9 +92,10 @@ const tripService = {
         // Cost breakdown records
         costEstimations: {
           create: {
-            foodCost: costBreakdown.food || 0,
-            transportCost: costBreakdown.transport || 0,
-            hotelCost: costBreakdown.accommodation || 0
+            foodCost: costBreakdown?.food || 0,
+            ticketCost: costBreakdown?.transport || 0,   // schema dùng ticketCost, không phải transportCost
+            hotelCost: costBreakdown?.accommodation || 0,
+            totalCost: totalEstimatedCost || 0
           }
         }
       }

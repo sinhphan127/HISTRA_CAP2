@@ -5,9 +5,9 @@ import tripService from "../services/tripService.js";
  */
 export const generateTrip = async (req, res, next) => {
   try {
-    const { city, days, travelers, interests } = req.body;
+    const { city, days, travelers, interests, budget } = req.body;
 
-    console.log('[TripController] Generate trip request:', { city, days, travelers, interests });
+    console.log('[TripController] Generate trip request:', { city, days, travelers, interests, budget });
 
     if (!city || !days || !travelers) {
       console.warn('[TripController] Missing required fields. Received:', req.body);
@@ -17,7 +17,7 @@ export const generateTrip = async (req, res, next) => {
       });
     }
 
-    const itinerary = await tripService.generateItinerary({ city, days, travelers, interests });
+    const itinerary = await tripService.generateItinerary({ city, days, travelers, interests, budget });
 
     res.status(200).json({
       success: true,
@@ -25,7 +25,6 @@ export const generateTrip = async (req, res, next) => {
     });
   } catch (error) {
     console.error('[TripController] Error generating trip:', error.message);
-    // Pass a structured error so front-end gets a meaningful message
     res.status(500).json({ success: false, message: error.message || 'Không thể tạo lịch trình.' });
   }
 };

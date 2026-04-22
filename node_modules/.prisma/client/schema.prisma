@@ -130,7 +130,7 @@ model Destination {
   longitude     Decimal?       @db.Decimal(10, 6)
   imageUrl      String?        @map("image_url") @db.Text
   category      String?        @db.VarChar(50)
-  isDeleted     Boolean?       @default(false) @map("is_deleted")
+  isDeleted     Boolean        @default(false) @map("is_deleted")
   createdAt     DateTime?      @default(now()) @map("created_at")
   articles      Article[]
   deals         Deal[]
