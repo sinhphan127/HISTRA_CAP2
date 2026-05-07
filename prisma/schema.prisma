@@ -319,9 +319,18 @@ model TripLocation {
   destinationId    Int?              @map("destination_id")
   dayNumber        Int?              @map("day_number")
   visitOrder       Int?              @map("visit_order")
+  
+  // New fields to store AI generated content
+  startTime        String?           @map("start_time") @db.VarChar(50)
+  activity         String?           @db.Text
+  reasoning        String?           @db.Text
+  locationName     String?           @map("location_name") @db.VarChar(255)
+
   arrivalTime      DateTime?         @map("arrival_time") @db.Time(0)
   departureTime    DateTime?         @map("departure_time") @db.Time(0)
   estimatedCost    Decimal?          @map("estimated_cost") @db.Decimal(10, 2)
+  isVisited        Boolean           @default(false) @map("is_visited")
+  visitedAt        DateTime?         @map("visited_at") @db.Timestamp(0)
   tripActivityTags TripActivityTag[]
   destination      Destination?      @relation(fields: [destinationId], references: [id])
   trip             Trip?             @relation(fields: [tripId], references: [id], onDelete: Cascade)

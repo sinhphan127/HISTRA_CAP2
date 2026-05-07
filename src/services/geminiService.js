@@ -4,78 +4,142 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// gemini-2.0-flash: nhanh, mạnh, hỗ trợ JSON tốt
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-/**
- * Service to handle interactions with Gemini AI
- */
+const generationConfig = {
+  temperature: 0.4,
+  topP: 0.95,
+  topK: 40,
+  maxOutputTokens: 2048,
+};
+
 const geminiService = {
   /**
-   * Generates a travel itinerary based on user input and available destinations
-   * @param {Object} params - { city, days, travelers, destinations, interests }
+   * Generates a travel itinerary using RAG pattern via Gemini
    */
-  async generateItinerary({ city, days, travelers, destinations, interests = [] }) {
-    try {
-      if (!process.env.GEMINI_API_KEY) {
-        throw new Error("GEMINI_API_KEY chưa được cấu hình trong .env");
-      }
+  async generateItinerary({ city, days, travelers, destinations, interests = [], budget = null }) {
+    console.log(`[GeminiService] === RAG Itinerary Generation ===`);
+    
+    const topDestinations = destinations.slice(0, 15); // Gemini xử lý được nhiều context hơn Qwen
+    const placeList = topDestinations
+      .map(d => {
+        const price = d.ticketPrice
+          ? `${Number(d.ticketPrice).toLocaleString('vi-VN')}d ve`
+          : 'Mien phi';
+        const dur = d.duration || '1-2 gio';
+        return `- ${d.name} | ${d.category} | ${price} | ${dur}`;
+      })
+      .join('\n');
 
-      console.log(`[GeminiService] Generating itinerary for: ${city}, ${days} days, ${travelers} travelers`);
-      console.log(`[GeminiService] Using API key: ${process.env.GEMINI_API_KEY?.substring(0, 10)}...`);
+    const budgetText = budget
+      ? `Ngân sách tổng: ${Number(budget).toLocaleString('vi-VN')} VNĐ cho ${travelers} người.`
+      : `Ngân sách: Linh hoạt.`;
 
-      // Use gemini-flash-latest as it is currently supported and works with the provided API key
-      const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+    const interestText = interests.length > 0
+      ? `Sở thích: ${interests.join(', ')}.`
+      : `Sở thích: Tổng hợp (tham quan, ẩm thực, nghỉ ngơi).`;
 
-      const prompt = `
-        You are a professional Vietnamese travel assistant. 
-        Generate a detailed travel itinerary for ${city} for ${days} days and ${travelers} travelers.
-        Assume the user is already stay at a hotel in ${city}, so do NOT include long-distance transport between cities.
-        User interests: ${interests.join(', ') || 'General tourism'}.
-        
-        Available locations in our database (prioritize these):
-        ${destinations.map(d => `- ${d.name}: ${d.description} (Category: ${d.category})`).join('\n')}
-        
-        Requirements:
-        1. Output in JSON format only. No markdown. No explanation.
-        2. Divide each day into "Morning", "Afternoon", and "Evening" slots.
-        3. Prioritize locations that match the user interests: ${interests.join(', ')}.
-        4. Include a "costEstimation" object with fields: accommodation, food. (Do NOT include transport).
-        5. Include a "reasoning" for each location choice explaining why it matches the selected interests.
-        6. Language: Vietnamese for content, English for JSON keys.
-        
-        Format:
+    const prompt = `Bạn là một chuyên gia du lịch của Histra. Nhiệm vụ của bạn là lập lịch trình du lịch ${days} ngày tại ${city} cho ${travelers} người.
+${budgetText}
+${interestText}
+
+DANH SÁCH ĐỊA ĐIỂM CHỈ ĐƯỢC CHỌN TỪ ĐÂY:
+${placeList}
+
+LUẬT LỆ:
+1. CHỈ sử dụng địa điểm từ danh sách trên.
+2. Trả về JSON object hợp lệ.
+3. activity và reasoning viết bằng Tiếng Việt.
+4. totalEstimatedCost = tổng vé + ăn uống (~150.000/người/ngày) + đi lại (~100.000/ngày).
+
+ĐỊNH DẠNG JSON:
+{
+  "title": "Hành trình tại ${city}",
+  "city": "${city}",
+  "totalEstimatedCost": 0,
+  "costBreakdown": {"transport": 0, "food": 0, "accommodation": 0},
+  "days": [
+    {
+      "day": 1,
+      "itinerary": [
         {
-          "title": "Hành trình khám phá...",
-          "totalEstimatedCost": 3500000,
-          "costBreakdown": { "accommodation": 2200000, "food": 1300000 },
-          "days": [
-            {
-              "day": 1,
-              "itinerary": [
-                { "timeSlot": "Morning", "locationName": "...", "activity": "...", "reasoning": "...", "tags": ["#Popular", "#Nature"] },
-                { "timeSlot": "Afternoon", "locationName": "...", "activity": "...", "reasoning": "...", "tags": ["#Food"] },
-                { "timeSlot": "Evening", "locationName": "...", "activity": "...", "reasoning": "...", "tags": ["#Relax"] }
-              ]
-            }
-          ]
+          "timeSlot": "HH:MM",
+          "locationName": "Tên địa điểm chính xác",
+          "activity": "Mô tả",
+          "estimatedCost": 0,
+          "reasoning": "Lý do",
+          "tags": ["#Tag"]
         }
-      `;
+      ]
+    }
+  ]
+}`;
 
-      const result = await model.generateContent(prompt);
+    try {
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig,
+      });
       const response = await result.response;
       let text = response.text();
       
-      console.log(`[GeminiService] Raw response (first 200 chars): ${text.substring(0, 200)}`);
+      // Dọn sạch markdown nếu Gemini trả về dạng block ```json
+      const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || 
+                        text.match(/```([\s\S]*?)```/) || 
+                        text.match(/{[\s\S]*}/);
       
-      // Clean up markdown code blocks if Gemini returns them
-      text = text.replace(/```json/g, "").replace(/```/g, "").trim();
-      
-      return JSON.parse(text);
+      if (jsonMatch) {
+        text = jsonMatch[1] ? jsonMatch[1] : jsonMatch[0];
+      }
+
+      return JSON.parse(text.trim());
     } catch (error) {
-      // Log the ACTUAL Gemini error, not a generic message
-      console.error("[GeminiService] FULL ERROR:", error);
-      console.error("[GeminiService] Error message:", error.message);
-      if (error.status) console.error("[GeminiService] HTTP Status:", error.status);
+      console.error('[GeminiService] Error:', error);
       throw new Error(`Gemini API lỗi: ${error.message}`);
+    }
+  },
+
+  /**
+   * Chat with AI about the itinerary
+   */
+  async chatWithBot({ itinerary, messages }) {
+    console.log(`[GeminiService] === AI Chat ===`);
+    
+    const chatModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    
+    // Build summary
+    let summary = `Lịch trình tại ${itinerary.city}:\n`;
+    (itinerary.days || []).forEach(d => {
+      summary += `Ngày ${d.day}:\n`;
+      (d.itinerary || []).forEach(item => {
+        summary += `- ${item.timeSlot}: ${item.locationName}\n`;
+      });
+    });
+
+    const lastMessage = messages[messages.length - 1]?.content || '';
+    
+    const systemPrompt = `Bạn là HISTRA Guide, một trợ lý du lịch thân thiện. 
+Dưới đây là lịch trình của người dùng:
+${summary}
+
+Hãy trả lời câu hỏi của họ một cách ngắn gọn (tối đa 3 câu).`;
+
+    try {
+      const chat = chatModel.startChat({
+        history: messages.slice(0, -1).map(m => ({
+          role: m.role === 'user' ? 'user' : 'model',
+          parts: [{ text: m.content }],
+        })),
+        generationConfig: { ...generationConfig },
+      });
+
+      const result = await chat.sendMessage(`${systemPrompt}\n\nNgười dùng hỏi: ${lastMessage}`);
+      const response = await result.response;
+      return response.text();
+    } catch (error) {
+      console.error('[GeminiService] Chat Error:', error);
+      throw new Error(`Gemini Chat lỗi: ${error.message}`);
     }
   }
 };
