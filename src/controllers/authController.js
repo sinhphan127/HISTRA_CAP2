@@ -1,0 +1,142 @@
+import * as authService from '../services/authService.js';
+import { validatePassword } from '../utils/passwordPolicy.js';
+import prisma from "../config/prismaClient.js";
+import validator from "validator";
+
+const authController = {
+  register: async (req, res, next) => {
+    try {
+      const { full_name, email, phone_number, password, confirm_password } = req.body;
+      const user = await authService.register({ 
+        full_name,         
+        email, 
+        password, 
+        confirm_password 
+      });
+      
+      res.status(201).json({ success: true, message: "Đăng ký thành công!", data: user });
+    } catch (err) {
+      if (err.code === "P2002") return res.status(409).json({ success: false, message: "Email hoặc số điện thoại đã tồn tại" });
+      next(err);
+    }
+  },
+
+  login: async (req, res, next) => {
+    try {
+      const { loginIdentifier, password, provider, token, full_name, role_required } = req.body;
+      const result = await authService.login({ 
+        loginIdentifier, 
+        password, 
+        provider, 
+        token, 
+        full_name,
+        role_required
+      });
+      res.status(200).json({ success: true, ...result });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  forgotPassword: async (req, res, next) => {
+    try {
+      const { email } = req.body;
+      const result = await authService.forgotPassword(email);
+      res.status(200).json({ success: true, ...result });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+ verifyOtp: async (req, res, next) => {
+  try {
+    const { email, otp } = req.body;
+    const result = await authService.verifyOtp({ email, otp }); 
+    res.status(200).json({ 
+      success: true, 
+      ...result 
+    });
+  } catch (err) {
+    next(err);
+  }
+},
+
+verifyRegisterOtp: async (req, res, next) => {
+  try {
+    const { email, otp } = req.body;
+    const result = await authService.verifyRegisterOtp({ email, otp });
+    res.status(200).json({ success: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+},
+
+resendRegisterOtp: async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    const result = await authService.resendRegisterOtp(email);
+    res.status(200).json({ success: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+},
+
+resetPassword: async (req, res, next) => {
+  try {
+    const { email, resetToken, newPassword } = req.body; 
+    if (!email || !resetToken || !newPassword) {
+      return res.status(400).json({ success: false, message: "Thiếu thông tin: email, resetToken hoặc mật khẩu mới." });
+    }
+    const result = await authService.resetPassword({ 
+      email, 
+      resetToken, 
+      newPassword 
+    });
+
+    res.status(200).json({ success: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+},
+  getMe: async (req, res, next) => {
+    try {
+      const user = await authService.getMe(req.user.id);
+      res.status(200).json({ success: true, data: user });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  updateProfile: async (req, res, next) => {
+    try {
+      const userId = req.user.id;
+      const { full_name, phone, bio, avatar_url } = req.body;
+      const updatedUser = await authService.updateProfile(userId, { full_name, phone, bio, avatar_url });
+      res.status(200).json({ success: true, message: "Cập nhật thông tin thành công", data: updatedUser });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  getFriends: async (req, res, next) => {
+    try {
+      const friends = await authService.getUserFriends(req.user.id);
+      res.status(200).json({ success: true, data: friends });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  updateAvatar: async (req, res, next) => {
+    try {
+      if (!req.file) throw new Error("Vui lòng chọn ảnh đại diện");
+      const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+      const updatedUser = await authService.updateProfile(req.user.id, { avatar_url: avatarUrl });
+      res.status(200).json({ success: true, message: "Cập nhật ảnh đại diện thành công", data: updatedUser });
+    } catch (err) {
+      next(err);
+    }
+  }
+};
+
+export default authController;
