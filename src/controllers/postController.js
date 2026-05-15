@@ -2,9 +2,15 @@ import * as postService from "../services/postService.js";
 
 export const getPosts = async (req, res, next) => {
   try {
-    const { skip, take } = req.query;
+    const { skip, take, keyword, category, sortBy } = req.query;
     const currentUserId = req.user?.id;
-    const posts = await postService.getAllPosts(currentUserId, skip, take);
+    const posts = await postService.getAllPosts(currentUserId, { 
+      skip, 
+      take, 
+      keyword, 
+      category, 
+      sortBy 
+    });
     res.status(200).json({ success: true, data: posts });
   } catch (error) {
     next(error);
@@ -13,12 +19,13 @@ export const getPosts = async (req, res, next) => {
 
 export const createPost = async (req, res, next) => {
   try {
-    const { title, content, thumbnailUrl, destinationIds } = req.body;
+    const { title, content, thumbnailUrl, destinationIds, visibility } = req.body;
     const userId = req.user.id;
 
     console.log("Create Post Request:", { 
       title, 
       userId, 
+      visibility,
       filesCount: req.files ? req.files.length : 0 
     });
     
@@ -46,7 +53,8 @@ export const createPost = async (req, res, next) => {
       content, 
       thumbnailUrl: finalThumbnailUrl, 
       destinationIds,
-      mediaFiles 
+      mediaFiles,
+      visibility
     });
     res.status(201).json({ success: true, data: post });
   } catch (error) {
@@ -80,10 +88,21 @@ export const addComment = async (req, res, next) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
-    const { content } = req.body;
+    const { content, parentId } = req.body;
     if (!content) throw new Error("Vui lòng nhập nội dung bình luận");
-    const comment = await postService.addComment(userId, id, content);
+    const comment = await postService.addComment(userId, id, content, parentId);
     res.status(201).json({ success: true, data: comment });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const toggleLikeComment = async (req, res, next) => {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user.id;
+    const result = await postService.toggleLikeComment(userId, commentId);
+    res.status(200).json({ success: true, ...result });
   } catch (error) {
     next(error);
   }

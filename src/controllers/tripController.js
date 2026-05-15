@@ -1,6 +1,7 @@
 import tripService from "../services/tripService.js";
 import aiService from "../services/aiService.js";
 import * as googleTTS from 'google-tts-api';
+import prisma from "../config/prismaClient.js";
 
 /**
  * Controller to handle Trip related requests
@@ -27,7 +28,7 @@ export const generateTrip = async (req, res, next) => {
     });
   } catch (error) {
     console.error('[TripController] Error generating trip:', error.message);
-    res.status(500).json({ success: false, message: error.message || 'Không thể tạo lịch trình.' });
+    res.status(500).json({ success: false, message: 'Không thể tạo lịch trình lúc này. Vui lòng thử lại sau.' });
   }
 };
 
@@ -51,11 +52,54 @@ export const saveTrip = async (req, res, next) => {
 export const getMyTrips = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const trips = await tripService.getUserTrips(userId);
+    const trips = await prisma.trip.findMany({
+      where: { userId },
+      include: {
+        tripLocations: {
+          include: { destination: true },
+          orderBy: [
+            { dayNumber: 'asc' },
+            { visitOrder: 'asc' }
+          ]
+        },
+        costEstimations: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
 
     res.status(200).json({
       success: true,
       data: trips
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getTripById = async (req, res, next) => {
+  try {
+    const { tripId } = req.params;
+    const trip = await prisma.trip.findUnique({
+      where: { id: parseInt(tripId) },
+      include: {
+        tripLocations: {
+          include: { destination: true },
+          orderBy: [
+            { dayNumber: 'asc' },
+            { visitOrder: 'asc' }
+          ]
+        },
+        costEstimations: true
+      }
+    });
+
+    if (!trip) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy chuyến đi." });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: trip
     });
   } catch (error) {
     next(error);

@@ -43,7 +43,7 @@ export const authMiddleware = async (req, res, next) => {
   } catch (error) {
     console.log("=== LỖI GIẢI MÃ TOKEN ===");
     console.log(error);
-    return res.status(401).json({ success: false, message: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn", error_detail: error.message });
+    return res.status(401).json({ success: false, message: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn" });
   }
 }; 
 export const restrictToAdmin = (req, res, next) => {

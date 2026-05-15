@@ -4,7 +4,9 @@ import {
     getMessagesByConversation as getMessagesService, 
     getOrCreatePrivateConversation,
     saveMessage,
-    getUserConversations
+    getUserConversations,
+    toggleMessageReaction,
+    markMessagesAsRead
 } from '../services/messengerService.js';
 import { io, notifyNewMessage } from '../socket.js';
 
@@ -33,7 +35,9 @@ export const createGroup = async (req, res) => {
         const group = await createGroupConversation(name, formattedUserIds, creatorId);
         res.status(201).json({ success: true, data: group });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        const status = error.message === "Nhóm chat chỉ hỗ trợ tối đa 50 thành viên." ? 400 : 500;
+        const message = status === 400 ? error.message : "Không thể tạo nhóm chat.";
+        res.status(status).json({ success: false, message });
     }
 };
 
@@ -58,7 +62,9 @@ export const createPrivateChat = async (req, res) => {
         const conversation = await getOrCreatePrivateConversation(senderId, receiverId);
         res.status(200).json({ success: true, data: conversation });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        const status = error.message === "Không thể tự chat với chính mình." ? 400 : 500;
+        const message = status === 400 ? error.message : "Không thể tạo cuộc trò chuyện.";
+        res.status(status).json({ success: false, message });
     }
 };
 
@@ -74,7 +80,7 @@ export const sendImage = async (req, res) => {
 
         res.status(201).json({ success: true, data: message });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: "Không thể gửi ảnh lúc này." });
     }
 };
 export const sendMessageAPI = async (req, res) => {
@@ -131,5 +137,50 @@ export const searchUsers = async (req, res) => {
     } catch (error) {
         console.error("Lỗi tìm kiếm người dùng:", error);
         res.status(500).json({ success: false, message: "Lỗi Server khi tìm kiếm" });
+    }
+};
+
+export const reactToMessage = async (req, res) => {
+    try {
+        const { messageId, reaction } = req.body;
+        const userId = req.user.id;
+        const result = await toggleMessageReaction(messageId, userId, reaction);
+        
+        // Notify via socket if possible (you can emit a 'message_reaction' event)
+        // For simplicity, we can fetch the conversationId or pass it in body
+        const message = await prisma.message.findUnique({ 
+            where: { id: parseInt(messageId, 10) },
+            select: { conversationId: true }
+        });
+        
+        if (message) {
+            io.to(parseInt(message.conversationId, 10)).emit('message_reaction', {
+                messageId,
+                userId,
+                reaction: result // might be null if deleted
+            });
+        }
+
+        res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Lỗi Server" });
+    }
+};
+
+export const markRead = async (req, res) => {
+    try {
+        const { conversationId } = req.params;
+        const userId = req.user.id;
+        await markMessagesAsRead(conversationId, userId);
+        
+        // Notify other user that messages are read
+        io.to(parseInt(conversationId, 10)).emit('messages_read', {
+            conversationId: parseInt(conversationId, 10),
+            userId // The user who read the messages
+        });
+
+        res.status(200).json({ success: true });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Lỗi Server" });
     }
 };

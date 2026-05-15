@@ -1,7 +1,7 @@
 import express from "express";
 import multer from "multer";
 import path from "path";
-import { getPosts, createPost, getPostDetail, toggleLike, addComment, getMyPosts, getSavedPosts, toggleSave } from "../controllers/postController.js";
+import { getPosts, createPost, getPostDetail, toggleLike, addComment, getMyPosts, getSavedPosts, toggleSave, toggleLikeComment } from "../controllers/postController.js";
 import authMiddleware from "../middlewares/authMiddlewares.js";
 
 const router = express.Router();
@@ -54,5 +54,6 @@ router.post("/", upload.array("files", 5), createPost);
 router.post("/:id/like", toggleLike);
 router.post("/:id/save", toggleSave);
 router.post("/:id/comment", addComment);
+router.post("/comment/:commentId/like", toggleLikeComment);
 
 export default router;

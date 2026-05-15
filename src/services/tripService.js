@@ -48,7 +48,7 @@ const tripService = {
             isDeleted: false
           },
           orderBy: { rating: 'desc' },
-          take: 20
+          take: 30
         });
 
     // Loại bỏ địa điểm trùng tên (seed data bị duplicate)
@@ -82,6 +82,10 @@ const tripService = {
     const { title, city, costBreakdown, totalEstimatedCost, days } = tripData;
 
     // 1. Tạo Trip record
+    const today = new Date();
+    const endDate = new Date();
+    endDate.setDate(today.getDate() + (days?.length || 1) - 1);
+
     const trip = await prisma.trip.create({
       data: {
         userId,
@@ -89,6 +93,8 @@ const tripService = {
         city,
         budget: totalEstimatedCost,
         status: 'PLANNED',
+        startDate: tripData.startDate ? new Date(tripData.startDate) : today,
+        endDate: tripData.endDate ? new Date(tripData.endDate) : endDate,
         // Cost breakdown records
         costEstimations: {
           create: {
@@ -124,7 +130,8 @@ const tripService = {
             startTime: slot.timeSlot || slot.time || "08:00",
             locationName: slot.locationName || slot.location || "Địa điểm mới",
             activity: slot.activity || "Tham quan",
-            reasoning: slot.reasoning || ""
+            reasoning: slot.reasoning || "",
+            estimatedCost: slot.estimatedCost || 0
           }
         });
       }

@@ -15,30 +15,16 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import friendRoutes from "./routes/friendRoutes.js";
 import tripRoutes from "./routes/tripRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import { initSocket } from "./socket.js";
+
 
 dotenv.config();
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
-});
 
-// Setup socket events
-io.on("connection", (socket) => {
-  console.log("✅ New socket connection:", socket.id);
-  
-  socket.on("join", (userId) => {
-    socket.join(`user_${userId}`);
-    console.log(`👤 User ${userId} joined their room`);
-  });
+// Initialize centralized socket logic
+const io = initSocket(httpServer);
 
-  socket.on("disconnect", () => {
-    console.log("❌ Socket disconnected:", socket.id);
-  });
-});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,11 +53,28 @@ app.use("/api/admin", adminRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {
-  console.error("Error:", err.message || err);
-  const status = err.status || 400;
+  const message = err.message || "";
+  const isTechnicalError =
+    err.name === "PrismaClientKnownRequestError" ||
+    err.name === "PrismaClientValidationError" ||
+    err.name === "ReferenceError" ||
+    err.name === "TypeError" ||
+    /AxiosError|timeout of \d+ms|ECONNABORTED|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|Prisma|P\d{4}|Cannot read|Ollama API lỗi|Ollama Chat lỗi|Ollama History lỗi/i.test(message);
+
+  const status = isTechnicalError ? 500 : (err.status || err.statusCode || 400);
+  const publicMessage = status >= 500
+    ? "Đã có lỗi xảy ra. Vui lòng thử lại sau."
+    : (message || "Yêu cầu không hợp lệ");
+
+  console.error("Error:", {
+    message: message || err,
+    path: req.originalUrl,
+    method: req.method,
+  });
+
   res.status(status).json({
     success: false,
-    message: err.message || "Lỗi Server"
+    message: publicMessage
   });
 });
 

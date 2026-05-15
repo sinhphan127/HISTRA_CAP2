@@ -44,6 +44,8 @@ model User {
   notifications          Notification[]     @relation("NotificationRecipient")
   otpCodes               OtpCode[]
   postLikes              PostLike[]
+  commentLikes           CommentLike[]
+  messageReactions       MessageReaction[]
   posts                  Post[]
   reports                Report[]
   savedPosts             SavedPost[]
@@ -99,6 +101,7 @@ model Post {
   title         String?        @db.VarChar(255)
   content       String?        @db.Text
   thumbnailUrl  String?        @map("thumbnail_url") @db.Text
+  visibility    String         @default("PUBLIC") @db.VarChar(20) // PUBLIC, FRIENDS, PRIVATE
   isDeleted     Boolean?       @default(false) @map("is_deleted")
   createdAt     DateTime?      @default(now()) @map("created_at")
   updatedAt     DateTime?      @updatedAt @map("updated_at")
@@ -154,18 +157,34 @@ model PostLocation {
 }
 
 model Comment {
-  id        Int       @id @default(autoincrement()) @map("comment_id")
-  postId    Int?      @map("post_id")
-  userId    Int?      @map("user_id")
-  content   String?   @db.Text
-  isDeleted Boolean?  @default(false) @map("is_deleted")
-  createdAt DateTime? @default(now()) @map("created_at")
-  post      Post?     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User?     @relation(fields: [userId], references: [id])
+  id        Int           @id @default(autoincrement()) @map("comment_id")
+  postId    Int?          @map("post_id")
+  userId    Int?          @map("user_id")
+  parentId  Int?          @map("parent_id")
+  content   String?       @db.Text
+  isDeleted Boolean?      @default(false) @map("is_deleted")
+  createdAt DateTime?     @default(now()) @map("created_at")
+  post      Post?         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User?         @relation(fields: [userId], references: [id])
+  parent    Comment?      @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   Comment[]     @relation("CommentReplies")
+  commentLikes CommentLike[]
 
   @@index([postId], map: "comments_post_id_fkey")
   @@index([userId], map: "comments_user_id_fkey")
   @@map("comments")
+}
+
+model CommentLike {
+  id        Int       @id @default(autoincrement())
+  commentId Int       @map("comment_id")
+  userId    Int       @map("user_id")
+  createdAt DateTime? @default(now()) @map("created_at")
+  comment   Comment   @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@unique([commentId, userId], name: "uq_comment_like")
+  @@map("comment_likes")
 }
 
 model PostLike {
@@ -246,18 +265,33 @@ model ConversationUser {
 }
 
 model Message {
-  id             Int           @id @default(autoincrement()) @map("message_id")
-  conversationId Int?          @map("conversation_id")
-  userId         Int?          @map("user_id")
-  content        String?       @db.Text
-  messageType    String?       @map("message_type") @db.VarChar(20)
-  createdAt      DateTime?     @default(now()) @map("created_at")
-  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  user           User?         @relation(fields: [userId], references: [id])
+  id             Int               @id @default(autoincrement()) @map("message_id")
+  conversationId Int?              @map("conversation_id")
+  userId         Int?              @map("user_id")
+  content        String?           @db.Text
+  messageType    String?           @map("message_type") @db.VarChar(20)
+  isRead         Boolean           @default(false) @map("is_read")
+  createdAt      DateTime?         @default(now()) @map("created_at")
+  conversation   Conversation?     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User?             @relation(fields: [userId], references: [id])
+  reactions      MessageReaction[]
 
   @@index([conversationId], map: "messages_conversation_id_fkey")
   @@index([userId], map: "messages_user_id_fkey")
   @@map("messages")
+}
+
+model MessageReaction {
+  id        Int       @id @default(autoincrement())
+  messageId Int       @map("message_id")
+  userId    Int       @map("user_id")
+  reaction  String    @db.VarChar(20) // e.g. "❤️", "👍", "😆"
+  createdAt DateTime? @default(now()) @map("created_at")
+  message   Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@unique([messageId, userId], name: "uq_message_reaction")
+  @@map("message_reactions")
 }
 
 model AiConversation {

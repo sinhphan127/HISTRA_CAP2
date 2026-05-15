@@ -1,85 +1,46 @@
+
 import ollamaService from './ollamaService.js';
 import geminiService from './geminiService.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Đổi 'ollama' ↔ 'gemini' tùy ý. Gemini hỏng → tự fallback Ollama
-const AI_PROVIDER = process.env.AI_PROVIDER || 'gemini';
+const provider = process.env.AI_PROVIDER || 'ollama';
 
 const aiService = {
   /**
-   * Generates itinerary using the selected provider.
-   * Tự động fallback sang Ollama nếu Gemini bị lỗi quota/rate limit.
+   * Generates itinerary using selected provider
    */
   async generateItinerary(params) {
-    if (AI_PROVIDER === 'ollama') {
-      console.log(`[AIService] Provider: ollama`);
-      return await ollamaService.generateItinerary(params);
-    }
-
-    // Thử Gemini trước
-    try {
-      console.log(`[AIService] Provider: gemini`);
+    console.log(`[AIService] Provider: ${provider}`);
+    if (provider === 'gemini') {
       return await geminiService.generateItinerary(params);
-    } catch (err) {
-      const isQuotaOrRate = err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('rate');
-      if (isQuotaOrRate) {
-        console.warn(`[AIService] ⚠️  Gemini quota hết — tự động chuyển sang Ollama...`);
-        return await ollamaService.generateItinerary(params);
-      }
-      throw err; // Lỗi khác thì báo lên
     }
+    return await ollamaService.generateItinerary(params);
   },
 
   /**
-   * Chat using the selected provider. Fallback tương tự.
+   * Chat using selected provider
    */
   async chatWithBot(params) {
-    if (AI_PROVIDER === 'ollama') {
-      console.log(`[AIService] Chat provider: ollama`);
-      return await ollamaService.chatWithBot(params);
-    }
-
-    try {
-      console.log(`[AIService] Chat provider: gemini`);
+    console.log(`[AIService] Chat provider: ${provider}`);
+    if (provider === 'gemini') {
       return await geminiService.chatWithBot(params);
-    } catch (err) {
-      const isQuotaOrRate = err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('rate');
-      if (isQuotaOrRate) {
-        console.warn(`[AIService] ⚠️  Gemini quota hết — tự động chuyển sang Ollama (chat)...`);
-        return await ollamaService.chatWithBot(params);
-      }
-      throw err;
     }
+    return await ollamaService.chatWithBot(params);
   },
 
   /**
-   * Generates a brief history for a location
+   * Generates a brief history for a location using selected provider
    */
   async generateHistory(locationName) {
-    if (AI_PROVIDER === 'ollama') {
-      try {
-        return await ollamaService.generateHistory(locationName);
-      } catch (err) {
-        return `Chưa có thông tin lịch sử chi tiết cho ${locationName}.`;
-      }
-    }
-
     try {
-      return await geminiService.generateHistory(locationName);
-    } catch (err) {
-      const isQuotaOrRate = err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('rate');
-      if (isQuotaOrRate) {
-        console.warn(`[AIService] ⚠️ Gemini quota hết — tự động chuyển sang Ollama (history)...`);
-        try {
-          return await ollamaService.generateHistory(locationName);
-        } catch (ollamaErr) {
-          return `Chưa có thông tin lịch sử chi tiết cho ${locationName}.`;
-        }
+      if (provider === 'gemini') {
+        return await geminiService.generateHistory(locationName);
       }
-      console.error('[AIService] Failed to generate history:', err);
-      // Fallback response if AI fails
+      return await ollamaService.generateHistory(locationName);
+    } catch (err) {
+      console.error(`[AIService] Failed to generate history with ${provider}:`, err);
       return `Chưa có thông tin lịch sử chi tiết cho ${locationName}.`;
     }
   }

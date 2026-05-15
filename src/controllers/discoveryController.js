@@ -74,8 +74,8 @@ export const getHomeData = async (req, res, next) => {
  */
 export const getDestinations = async (req, res, next) => {
   try {
-    const { keyword, category, province, minRating } = req.query;
-    console.log(`[Discovery] Search with: keyword=${keyword}, category=${category}, province=${province}, minRating=${minRating}`);
+    const { keyword, category, province, city, minRating } = req.query;
+    console.log(`[Discovery] Search with: keyword=${keyword}, category=${category}, province=${province}, city=${city}, minRating=${minRating}`);
 
     const where = {
       isDeleted: false,
@@ -84,7 +84,10 @@ export const getDestinations = async (req, res, next) => {
     if (keyword) {
       where.OR = [
         { name: { contains: keyword } },
-        { description: { contains: keyword } }
+        { description: { contains: keyword } },
+        { city: { contains: keyword } },
+        { province: { contains: keyword } },
+        { address: { contains: keyword } }
       ];
     }
 
@@ -92,8 +95,14 @@ export const getDestinations = async (req, res, next) => {
       where.category = { contains: category };
     }
 
-    if (province && province !== 'All') {
-      where.province = { contains: province };
+    // Nếu có province hoặc city thì lọc theo địa điểm
+    if ((province && province !== 'All') || (city && city !== 'All')) {
+      const locationValue = province || city;
+      where.OR = [
+        ...(where.OR || []),
+        { province: { contains: locationValue } },
+        { city: { contains: locationValue } }
+      ];
     }
 
     if (minRating && !isNaN(parseFloat(minRating))) {
@@ -180,6 +189,24 @@ export const getProvinces = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: provinceList
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Lấy danh sách tất cả các Activity Tags
+ */
+export const getTags = async (req, res, next) => {
+  try {
+    const tags = await prisma.activityTag.findMany({
+      orderBy: { name: 'asc' }
+    });
+
+    res.status(200).json({
+      success: true,
+      data: tags
     });
   } catch (err) {
     next(err);

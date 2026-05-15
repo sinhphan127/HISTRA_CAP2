@@ -1,11 +1,14 @@
 import prisma from "../config/prismaClient.js";
+import axios from "axios";
 import crypto from "crypto";
+import { OAuth2Client } from "google-auth-library";
 import generateOTP from "../utils/generateOtp.js";
 import { sendEmail } from "../utils/mailer.js";
 import { hashPassword, comparePassword } from "../utils/bcrypt.js";
 import { signToken } from "../utils/jwt.js";
 
 const OTP_TTL_MINUTES = 10;
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 export async function register({ full_name, email, password, confirm_password }) {
   const existingEmail = await prisma.user.findUnique({ where: { email } });
@@ -76,12 +79,14 @@ export async function login({ loginIdentifier, password, provider, token, full_n
       email = payload.email;
       name = payload.name || full_name;
     } catch (error) {
-      throw new Error("Xác thực Google thất bại: " + error.message);
+      throw new Error("Xác thực Google thất bại. Vui lòng thử lại.");
     }
   } else if (provider === "facebook") {
     if (!token) throw new Error("Yêu cầu token xác thực Facebook");
     try {
-      const res = await axios.get(`https://graph.facebook.com/me?fields=id,name,email&access_token=${token}`);
+      const res = await axios.get(`https://graph.facebook.com/me?fields=id,name,email&access_token=${token}`, {
+        timeout: 10000,
+      });
       email = res.data.email;
       name = res.data.name || full_name;
       if (!email) throw new Error("Facebook không cung cấp email. Vui lòng kiểm tra quyền truy cập.");

@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
-import { getConversations, createGroup, getChatHistory, createPrivateChat, sendImage, sendMessageAPI, searchUsers } from '../controllers/messengerController.js';
+import { getConversations, createGroup, getChatHistory, createPrivateChat, sendImage, sendMessageAPI, searchUsers, reactToMessage, markRead } from '../controllers/messengerController.js';
 import authMiddleware from '../middlewares/authMiddlewares.js';
 const router = express.Router();
 const storage = multer.diskStorage({
@@ -17,4 +17,6 @@ router.post('/private', createPrivateChat);
 router.post('/send-image', upload.single('image'), sendImage); 
 router.post('/send-message', sendMessageAPI);
 router.get('/search-users', searchUsers);
+router.post('/react', reactToMessage);
+router.patch('/:conversationId/read', markRead);
 export default router;

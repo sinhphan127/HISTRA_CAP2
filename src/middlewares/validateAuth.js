@@ -31,16 +31,32 @@ const registerSchema = Joi.object({
 
 // Login Validation Schema
 const loginSchema = Joi.object({
-  loginIdentifier: Joi.string().required().messages({
-    'string.empty': 'Username hoặc Email không được để trống',
-    'any.required': 'Trường Username hoặc Email là bắt buộc'
+  loginIdentifier: Joi.when('provider', {
+    is: Joi.exist(),
+    then: Joi.string().optional().allow('', null),
+    otherwise: Joi.string().required().messages({
+      'string.empty': 'Username hoặc Email không được để trống',
+      'any.required': 'Trường Username hoặc Email là bắt buộc'
+    })
   }),
-  password: Joi.string().allow('', null).messages({
-    'string.empty': 'Mật khẩu không được để trống'
+  password: Joi.when('provider', {
+    is: Joi.exist(),
+    then: Joi.string().optional().allow('', null),
+    otherwise: Joi.string().required().messages({
+      'string.empty': 'Mật khẩu không được để trống',
+      'any.required': 'Trường Mật khẩu là bắt buộc'
+    })
   }),
   role_required: Joi.string().optional(),
-  provider: Joi.string().optional(),
-  token: Joi.string().optional(),
+  provider: Joi.string().valid('google', 'facebook').optional(),
+  token: Joi.when('provider', {
+    is: Joi.exist(),
+    then: Joi.string().required().messages({
+      'string.empty': 'Token xác thực không được để trống',
+      'any.required': 'Thiếu token xác thực'
+    }),
+    otherwise: Joi.string().optional()
+  }),
   full_name: Joi.string().optional()
 });
 

@@ -55,7 +55,57 @@ export const getMessagesByConversation = async (conversationId, skip = 0, take =
         orderBy: { createdAt: 'desc' },
         skip: parseInt(skip, 10),
         take: parseInt(take, 10),
-        include: { user: { select: { fullName: true, avatarUrl: true } } }
+        include: { 
+            user: { select: { fullName: true, avatarUrl: true } },
+            reactions: {
+                include: { user: { select: { fullName: true } } }
+            }
+        }
+    });
+};
+
+// Toggle reaction
+export const toggleMessageReaction = async (messageId, userId, reaction) => {
+    const mid = parseInt(messageId, 10);
+    const uid = parseInt(userId, 10);
+
+    const existing = await prisma.messageReaction.findUnique({
+        where: {
+            uq_message_reaction: { messageId: mid, userId: uid }
+        }
+    });
+
+    if (existing && existing.reaction === reaction) {
+        // Remove reaction
+        return await prisma.messageReaction.delete({
+            where: { id: existing.id }
+        });
+    } else if (existing) {
+        // Change reaction
+        return await prisma.messageReaction.update({
+            where: { id: existing.id },
+            data: { reaction }
+        });
+    } else {
+        // Add reaction
+        return await prisma.messageReaction.create({
+            data: { messageId: mid, userId: uid, reaction }
+        });
+    }
+};
+
+// Mark as read
+export const markMessagesAsRead = async (conversationId, userId) => {
+    const cid = parseInt(conversationId, 10);
+    const uid = parseInt(userId, 10);
+
+    return await prisma.message.updateMany({
+        where: {
+            conversationId: cid,
+            userId: { not: uid },
+            isRead: false
+        },
+        data: { isRead: true }
     });
 };
 
@@ -109,11 +159,23 @@ export const getUserConversations = async (userId) => {
         }
     });
 
-    conversations.sort((a, b) => {
+    // Add unread count
+    const withUnread = await Promise.all(conversations.map(async (c) => {
+        const count = await prisma.message.count({
+            where: {
+                conversationId: c.id,
+                userId: { not: uid },
+                isRead: false
+            }
+        });
+        return { ...c, unreadCount: count };
+    }));
+
+    withUnread.sort((a, b) => {
         const dateA = a.messages.length > 0 ? new Date(a.messages[0].createdAt).getTime() : new Date(a.createdAt).getTime();
         const dateB = b.messages.length > 0 ? new Date(b.messages[0].createdAt).getTime() : new Date(b.createdAt).getTime();
         return dateB - dateA;
     });
 
-    return conversations;
+    return withUnread;
 };
